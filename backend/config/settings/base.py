@@ -33,7 +33,8 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     'apps.core',
-    'apps.users.apps.UsersConfig',  # Explicit config reference
+    'apps.users.apps.UsersConfig',
+    'apps.organizations.apps.OrganizationsConfig',  # ← Nueva app añadida
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -82,7 +83,7 @@ DATABASES = {
     }
 }
 
-# Custom User Model (Enterprise requirement)
+# Custom User Model
 AUTH_USER_MODEL = 'users.User'
 
 # Password validation
