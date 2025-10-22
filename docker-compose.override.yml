@@ -1,0 +1,79 @@
+version: '3.8'
+
+# Development-only services and overrides
+services:
+  # ==========================================
+  # DEVELOPMENT TOOLS
+  # ==========================================
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: nexus_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@nexuspm.dev
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - nexus_network
+    restart: unless-stopped
+
+  # Redis Commander for Redis management
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: nexus_redis_commander
+    environment:
+      REDIS_HOSTS: local:redis:6379:0:nexus_redis_2024
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - nexus_network
+    restart: unless-stopped
+
+  # Flower for Celery monitoring
+  flower:
+    build:
+      context: .
+      dockerfile: docker/django/Dockerfile
+    container_name: nexus_flower
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+    networks:
+      - nexus_network
+    command: celery -A config flower --port=5555
+    restart: unless-stopped
+
+  # ==========================================
+  # DEVELOPMENT OVERRIDES
+  # ==========================================
+
+  web:
+    # Override for development with hot reload
+    volumes:
+      - ./backend:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.development
+      - PYTHONUNBUFFERED=1
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
+
+volumes:
+  pgadmin_data:
+    name: nexus_pgadmin_data

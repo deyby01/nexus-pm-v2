@@ -1,0 +1,40 @@
+-r base.txt
+
+# Development & Debugging Tools
+django-debug-toolbar==4.2.0
+django-silk==5.0.4
+ipython==8.18.1
+ipdb==0.13.13
+
+# Testing Framework
+pytest==7.4.3
+pytest-django==4.7.0
+pytest-cov==4.0.0
+pytest-xdist==3.5.0
+factory-boy==3.3.0
+faker==22.0.0
+freezegun==1.2.2
+
+# Code Quality & Formatting
+black==23.12.1
+isort==5.13.2
+flake8==7.0.0
+mypy==1.8.0
+pre-commit==3.6.0
+
+# Coverage & Reporting
+coverage==7.4.0
+
+# Documentation
+sphinx==7.2.6
+sphinx-rtd-theme==2.0.0
+
+# Performance & Load Testing
+locust==2.20.0
+memory-profiler==0.61.0
+
+# Database Tools
+django-extensions==3.2.3
+
+# Development Server Enhancements
+watchdog==4.0.0

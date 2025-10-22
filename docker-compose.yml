@@ -1,0 +1,185 @@
+
+services:
+  # ==========================================
+  # DATABASE SERVICES
+  # ==========================================
+  
+  postgres:
+    image: postgres:15-alpine
+    container_name: nexus_postgres
+    environment:
+      POSTGRES_DB: nexuspm
+      POSTGRES_USER: nexus_admin
+      POSTGRES_PASSWORD: nexus_dev_2024
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - nexus_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus_admin -d nexuspm"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ==========================================
+  # CACHE & MESSAGE BROKER
+  # ==========================================
+
+  redis:
+    image: redis:7-alpine
+    container_name: nexus_redis
+    command: redis-server --appendonly yes --requirepass nexus_redis_2024
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - nexus_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "nexus_redis_2024", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ==========================================
+  # FILE STORAGE (S3 Compatible)
+  # ==========================================
+
+  minio:
+    image: minio/minio:latest
+    container_name: nexus_minio
+    environment:
+      MINIO_ROOT_USER: nexus_minio
+      MINIO_ROOT_PASSWORD: nexus_minio_2024
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"  # API
+      - "9001:9001"  # Console
+    networks:
+      - nexus_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: unless-stopped
+
+  # ==========================================
+  # EMAIL TESTING
+  # ==========================================
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: nexus_mailhog
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    networks:
+      - nexus_network
+    restart: unless-stopped
+
+  # ==========================================
+  # BACKEND SERVICES
+  # ==========================================
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/django/Dockerfile
+    container_name: nexus_web
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - nexus_network
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
+    restart: unless-stopped
+
+  # ==========================================
+  # CELERY WORKERS
+  # ==========================================
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: docker/django/Dockerfile
+    container_name: nexus_celery_worker
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - nexus_network
+    command: celery -A config worker -l info --pool=solo
+    restart: unless-stopped
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: docker/django/Dockerfile
+    container_name: nexus_celery_beat
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+      - celery_beat_data:/app/celerybeat-schedule
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - nexus_network
+    command: celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    restart: unless-stopped
+
+# ==========================================
+# VOLUMES
+# ==========================================
+
+volumes:
+  postgres_data:
+    name: nexus_postgres_data
+  redis_data:
+    name: nexus_redis_data
+  minio_data:
+    name: nexus_minio_data
+  static_volume:
+    name: nexus_static_volume
+  media_volume:
+    name: nexus_media_volume
+  celery_beat_data:
+    name: nexus_celery_beat_data
+
+# ==========================================
+# NETWORKS
+# ==========================================
+
+networks:
+  nexus_network:
+    name: nexus_network
+    driver: bridge
