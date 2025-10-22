@@ -33,6 +33,7 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     'apps.core',
+    'apps.users.apps.UsersConfig',  # Explicit config reference
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -81,6 +82,9 @@ DATABASES = {
     }
 }
 
+# Custom User Model (Enterprise requirement)
+AUTH_USER_MODEL = 'users.User'
+
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -88,6 +92,9 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {
+            'min_length': 8,
+        }
     },
     {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
