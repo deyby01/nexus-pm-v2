@@ -34,7 +34,8 @@ THIRD_PARTY_APPS = [
 LOCAL_APPS = [
     'apps.core',
     'apps.users.apps.UsersConfig',
-    'apps.organizations.apps.OrganizationsConfig',  # ← Nueva app añadida
+    'apps.organizations.apps.OrganizationsConfig',
+    'apps.workspaces.apps.WorkspacesConfig',  # ← Nueva app añadida
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
