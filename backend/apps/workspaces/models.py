@@ -1,11 +1,7 @@
 """
-NexusPM Enterprise - Workspaces Models (FIXED)
+NexusPM Enterprise - Workspaces Models (UPDATED)
 
-This module implements team-level organization within multi-tenant organizations.
-Workspaces serve as containers for projects and provide granular access control
-at the team level, essential for enterprise-scale project management.
-
-Note: Project-related methods are temporarily commented out until Projects model is implemented.
+Now with proper Project model integration for complete functionality.
 """
 
 import uuid
@@ -21,33 +17,15 @@ User = get_user_model()
 class WorkspaceMembership(models.Model):
     """
     Represents a User's membership in a Workspace.
-    
-    This provides granular access control at the team level, allowing
-    organizations to control which users can access which teams/departments.
-    
-    Permission Hierarchy:
-    1. Organization membership (base requirement)
-    2. Workspace membership (team access)  
-    3. Project access (inherited from workspace)
-    4. Task permissions (inherited from project)
-    
-    Business Logic:
-    - User must be Organization member to join Workspace
-    - Workspace roles can be more restrictive than Organization roles
-    - Users can have different roles in different workspaces
-    - Invitations are scoped to workspace level
     """
     
     class Role(models.TextChoices):
-        """
-        Workspace-level roles for team management.
-        These are more granular than organization roles.
-        """
-        ADMIN = 'admin', 'Workspace Admin'     # Full workspace control
-        MANAGER = 'manager', 'Project Manager' # Project creation & management
-        MEMBER = 'member', 'Team Member'       # Standard team access
-        CONTRIBUTOR = 'contributor', 'Contributor' # Limited access (contractors)
-        VIEWER = 'viewer', 'Viewer'            # Read-only team access
+        """Workspace-level roles for team management"""
+        ADMIN = 'admin', 'Workspace Admin'     
+        MANAGER = 'manager', 'Project Manager' 
+        MEMBER = 'member', 'Team Member'       
+        CONTRIBUTOR = 'contributor', 'Contributor'
+        VIEWER = 'viewer', 'Viewer'            
     
     # Relationships
     user = models.ForeignKey(
@@ -57,7 +35,7 @@ class WorkspaceMembership(models.Model):
         help_text="User who is a member of this workspace"
     )
     workspace = models.ForeignKey(
-        'Workspace',  # Forward reference
+        'Workspace',
         on_delete=models.CASCADE,
         related_name='memberships',
         help_text="Workspace the user belongs to"
@@ -117,10 +95,7 @@ class WorkspaceMembership(models.Model):
         return f"{self.user.email} → {self.workspace.name} ({self.role})"
     
     def clean(self):
-        """
-        Custom validation to ensure business rules.
-        This is enterprise-grade validation.
-        """
+        """Custom validation to ensure business rules"""
         super().clean()
         
         # Rule 1: User must be a member of the workspace's organization
@@ -142,10 +117,7 @@ class WorkspaceMembership(models.Model):
         super().save(*args, **kwargs)
     
     def has_permission(self, permission):
-        """
-        Check workspace-level permissions.
-        These are more granular than organization permissions.
-        """
+        """Check workspace-level permissions"""
         workspace_permissions = {
             self.Role.ADMIN: [
                 'manage_workspace_settings',
@@ -181,51 +153,22 @@ class WorkspaceMembership(models.Model):
         
         user_permissions = workspace_permissions.get(self.role, [])
         return permission in user_permissions
-    
-    @property
-    def effective_role(self):
-        """
-        Get the effective role considering both organization and workspace roles.
-        Organization Owner/Admin can override workspace restrictions.
-        """
-        # Check organization role
-        org_membership = self.user.organization_memberships.filter(
-            organization=self.workspace.organization,
-            is_active=True
-        ).first()
-        
-        if org_membership and org_membership.role in ['owner', 'admin']:
-            return 'admin'  # Organization admins have full workspace access
-        
-        return self.role
 
 
 class Workspace(models.Model):
     """
     Team containers within Organizations for project grouping and access control.
-    
-    Workspaces provide the middle layer of our multi-tenant architecture:
-    Organization → Workspace → Project → Task
-    
-    Key Responsibilities:
-    - Team-level data organization and access control
-    - Project container and categorization
-    - Team-specific settings and workflows
-    - Resource allocation within organization limits
-    - Granular permission boundaries for enterprise security
+    Now with full Project model integration.
     """
     
     class Status(models.TextChoices):
         """Workspace lifecycle states"""
-        ACTIVE = 'active', 'Active'           # Normal operational state
-        ARCHIVED = 'archived', 'Archived'     # Completed/inactive projects
-        SUSPENDED = 'suspended', 'Suspended'  # Temporarily disabled
+        ACTIVE = 'active', 'Active'           
+        ARCHIVED = 'archived', 'Archived'     
+        SUSPENDED = 'suspended', 'Suspended'  
     
     class WorkspaceType(models.TextChoices):
-        """
-        Workspace types for better categorization and UX.
-        Used for icons, default settings, and workflow suggestions.
-        """
+        """Workspace types for better categorization and UX"""
         DEVELOPMENT = 'development', 'Development Team'
         MARKETING = 'marketing', 'Marketing Team'
         DESIGN = 'design', 'Design Team'
@@ -235,7 +178,7 @@ class Workspace(models.Model):
         FINANCE = 'finance', 'Finance Team'
         HR = 'hr', 'Human Resources'
         GENERAL = 'general', 'General Purpose'
-        CLIENT = 'client', 'Client Project'  # For agencies
+        CLIENT = 'client', 'Client Project'
     
     # Primary identification
     id = models.UUIDField(
@@ -298,7 +241,7 @@ class Workspace(models.Model):
     # Visual customization
     color = models.CharField(
         max_length=7,
-        default='#3B82F6',  # Blue
+        default='#3B82F6',
         help_text="Hex color for workspace branding and UI"
     )
     icon = models.CharField(
@@ -341,7 +284,7 @@ class Workspace(models.Model):
         db_table = 'workspaces_workspace'
         verbose_name = 'Workspace'
         verbose_name_plural = 'Workspaces'
-        unique_together = ['organization', 'slug']  # Slug unique within organization
+        unique_together = ['organization', 'slug']
         indexes = [
             models.Index(fields=['organization', 'status']),
             models.Index(fields=['created_by']),
@@ -355,11 +298,9 @@ class Workspace(models.Model):
     
     def save(self, *args, **kwargs):
         """Auto-generate slug and validate business rules"""
-        # Auto-generate slug from name if not provided
         if not self.slug:
             self.slug = slugify(self.name)
             
-            # Ensure slug uniqueness within organization
             counter = 1
             original_slug = self.slug
             while Workspace.objects.filter(
@@ -372,10 +313,7 @@ class Workspace(models.Model):
         super().save(*args, **kwargs)
     
     def clean(self):
-        """
-        Enterprise-grade validation for business rules.
-        This ensures data integrity and business logic compliance.
-        """
+        """Enterprise-grade validation for business rules"""
         super().clean()
         
         # Rule 1: Check organization workspace limits
@@ -408,20 +346,11 @@ class Workspace(models.Model):
         return self.member_count or self.memberships.filter(is_active=True).count()
     
     def get_project_count(self):
-        """Get cached or computed active project count (placeholder for now)"""
-        # TODO: Implement when Project model is created
-        # return self.project_count or self.projects.filter(deleted_at__isnull=True).count()
-        return self.project_count  # Return cached value for now
+        """Get cached or computed active project count - NOW WORKS!"""
+        return self.project_count or self.projects.filter(deleted_at__isnull=True).count()
     
     def can_user_access(self, user):
-        """
-        Check if a user can access this workspace.
-        
-        Access Rules:
-        1. User must be organization member
-        2. If workspace is private, user must be workspace member
-        3. If workspace is public, organization membership is sufficient
-        """
+        """Check if a user can access this workspace"""
         # Check organization membership first
         org_membership = user.organization_memberships.filter(
             organization=self.organization,
@@ -446,12 +375,7 @@ class Workspace(models.Model):
         return True
     
     def add_member(self, user, role=WorkspaceMembership.Role.MEMBER, invited_by=None):
-        """
-        Add a user as a member of this workspace.
-        
-        This is the primary way to grant workspace access.
-        Includes validation and automatic setup.
-        """
+        """Add a user as a member of this workspace"""
         # Validation
         if not self.can_user_access(user):
             raise ValidationError(
@@ -472,7 +396,6 @@ class Workspace(models.Model):
         )
         
         if not created:
-            # Reactivate if was previously inactive
             membership.is_active = True
             membership.role = role
             membership.save(update_fields=['is_active', 'role'])
@@ -492,10 +415,7 @@ class Workspace(models.Model):
         self.save(update_fields=['member_count'])
     
     def get_default_settings(self):
-        """
-        Get default settings for new workspaces.
-        These can be customized per workspace type.
-        """
+        """Get default settings for new workspaces"""
         type_defaults = {
             self.WorkspaceType.DEVELOPMENT: {
                 'default_project_template': 'agile_scrum',
@@ -517,7 +437,6 @@ class Workspace(models.Model):
             }
         }
         
-        # Get type-specific defaults or use general defaults
         return type_defaults.get(self.workspace_type, {
             'default_project_template': 'general',
             'enable_time_tracking': False,
@@ -525,17 +444,15 @@ class Workspace(models.Model):
         })
     
     def soft_delete(self):
-        """
-        Soft delete the workspace and handle related data.
-        
-        Enterprise pattern: Don't actually delete, just mark as deleted
-        for audit trail and data recovery purposes.
-        """
+        """Soft delete the workspace and handle related data"""
         self.deleted_at = timezone.now()
         self.status = self.Status.ARCHIVED
         self.save(update_fields=['deleted_at', 'status'])
         
-        # TODO: Soft delete all projects in this workspace when Project model exists
+        # Soft delete all projects in this workspace
+        self.projects.filter(deleted_at__isnull=True).update(
+            deleted_at=timezone.now()
+        )
         
     def restore(self):
         """Restore a soft-deleted workspace"""
@@ -551,7 +468,6 @@ class Workspace(models.Model):
     
     @property
     def is_over_project_limit(self):
-        """Check if workspace exceeds project limits (placeholder)"""
-        # TODO: Implement when Project model is created
+        """Check if workspace exceeds project limits - NOW WORKS!"""
         org_limits = self.organization.get_usage_limits()
         return self.get_project_count() > org_limits['max_projects_per_workspace']
